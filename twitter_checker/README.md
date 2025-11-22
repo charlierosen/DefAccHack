@@ -58,6 +58,11 @@ The API listens on `http://localhost:8000`. CORS is open for local extension use
    - “I am uncertain about this claim.”
    - It also lists cited source URLs if Gemini returns them and draws a simple source graph.
 
+### Page scanning
+- Use the popup button **Scan this page**. The content script gathers visible text blocks, the backend decides which blocks contain claims (skips non-claims), then flags suspicious ones (red for false/dangerous, amber for uncertain).  
+- Hover highlighted text on the page to see a tooltip with the reason and sources.  
+- Click **Clear highlights** in the popup to remove flags.
+
 ## Notes on Gemini 2.5 Flash
 - All AI prompts live in `gemini_client.py`, `claim_extractor.py`, `google_query.py`, and `classifier.py`.  
 - Replace the `YOUR_GEMINI_API_KEY` placeholder or set `GEMINI_API_KEY`.  

@@ -14,8 +14,16 @@ PROMPT_TEMPLATE = (
 )
 
 
+def _squash(text: str, max_words: int = 16) -> str:
+    words = text.split()
+    if len(words) > max_words:
+        words = words[:max_words]
+    return " ".join(words)
+
+
 def make_search_query(claim: str) -> str:
     """Return a concise search query for fact-check discovery."""
     prompt = PROMPT_TEMPLATE.format(claim=claim)
     response = call_gemini(prompt)
-    return response.strip() if response else claim
+    cleaned = response.strip().replace("\n", " ") if response else claim
+    return _squash(cleaned)

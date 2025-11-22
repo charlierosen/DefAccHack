@@ -4,6 +4,11 @@ function renderResult({ claim, verdict, reason, sources, results }) {
   const container = document.getElementById("result");
   if (!verdict) {
     container.textContent = "No investigation yet.";
+    const canvas = graphCanvas();
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
     return;
   }
   const verdictText = verdict === "true"
@@ -25,6 +30,25 @@ function renderResult({ claim, verdict, reason, sources, results }) {
   `;
 
   renderGraph(claim, sources, results);
+}
+
+function renderScanSummary(summary) {
+  const el = document.getElementById("scan-summary");
+  if (!summary) {
+    el.textContent = "";
+    return;
+  }
+  if (summary.error) {
+    el.innerHTML = `<p class="error">Scan error: ${summary.error}</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <p class="scan-stats">
+      Scanned ${summary.total || 0} blocks. Flags: 
+      <span class="badge red">${summary.red || 0} red</span>
+      <span class="badge amber">${summary.amber || 0} amber</span>
+    </p>
+  `;
 }
 
 function renderGraph(claim, sources = [], results = []) {
@@ -112,7 +136,52 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  chrome.storage.local.get(["claim", "verdict", "reason", "sources", "results"], (data) => {
-    renderResult(data);
+  const controls = {
+    scanBtn: document.getElementById("scan-btn"),
+    clearBtn: document.getElementById("clear-btn"),
+  };
+
+  controls.scanBtn?.addEventListener("click", () => {
+    controls.scanBtn.disabled = true;
+    controls.scanBtn.textContent = "Scanning...";
+    chrome.runtime.sendMessage({ type: "START_SCAN" }, () => {
+      setTimeout(() => {
+        controls.scanBtn.disabled = false;
+        controls.scanBtn.textContent = "Scan this page";
+      }, 500);
+    });
   });
+
+  controls.clearBtn?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "CLEAR_FLAGS" });
+    chrome.storage.local.remove(["scanSummary", "scanFlags"]);
+    renderScanSummary(null);
+  });
+
+  function load() {
+    chrome.storage.local.get(["claim", "verdict", "reason", "sources", "results", "scanSummary"], (data) => {
+      renderResult(data);
+      renderScanSummary(data.scanSummary);
+    });
+  }
+
+  chrome.storage.onChanged.addListener((changes) => {
+    const snapshot = {};
+    ["claim", "verdict", "reason", "sources", "results", "scanSummary"].forEach((k) => {
+      if (changes[k]) snapshot[k] = changes[k].newValue;
+    });
+    if (Object.keys(snapshot).length) {
+      const data = {
+        claim: snapshot.claim,
+        verdict: snapshot.verdict,
+        reason: snapshot.reason,
+        sources: snapshot.sources,
+        results: snapshot.results,
+      };
+      renderResult({ ...data, ...snapshot });
+      renderScanSummary(snapshot.scanSummary);
+    }
+  });
+
+  load();
 });

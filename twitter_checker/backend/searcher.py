@@ -68,6 +68,7 @@ def search_web(query: str) -> List[Dict]:
     - BRAVE_API_KEY
     - SERPAPI_API_KEY
     """
+    query = " ".join(query.split())[:300]  # squash whitespace and trim overly long prompts
     brave_key = os.getenv("BRAVE_API_KEY")
     serp_key = os.getenv("SERPAPI_API_KEY")
 

@@ -1,5 +1,6 @@
 const CONTEXT_MENU_ID = "investigate-claim";
 const BACKEND_URL = "http://localhost:8000/investigate";
+const SCAN_URL = "http://localhost:8000/scan";
 
 // Create context menu on install or update.
 chrome.runtime.onInstalled.addListener(() => {
@@ -33,6 +34,16 @@ async function sendToBackend(text) {
   }
 }
 
+async function sendScanPayload(payload) {
+  const res = await fetch(SCAN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+  return await res.json();
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID || !tab?.id) return;
 
@@ -56,4 +67,69 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       console.warn("Could not open popup automatically.", err);
     }
   }
+});
+
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+async function collectBlocksFromTab(tabId) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { type: "COLLECT_BLOCKS" }, (response) => {
+      resolve(response);
+    });
+  });
+}
+
+async function applyFlagsToTab(tabId, flags) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { type: "APPLY_FLAGS", flags }, (resp) => resolve(resp));
+  });
+}
+
+async function startScan() {
+  const tab = await getActiveTab();
+  if (!tab?.id) return { error: "No active tab." };
+
+  const { blocks = [], url } = (await collectBlocksFromTab(tab.id)) || {};
+  if (!blocks.length) {
+    const summary = { total: 0, red: 0, amber: 0, ts: Date.now(), error: "No text blocks found." };
+    await chrome.storage.local.set({ scanSummary: summary });
+    return summary;
+  }
+
+  let response;
+  try {
+    response = await sendScanPayload({ url: url || tab.url, blocks: blocks.slice(0, 20) });
+  } catch (err) {
+    const summary = { total: blocks.length, red: 0, amber: 0, ts: Date.now(), error: String(err) };
+    await chrome.storage.local.set({ scanSummary: summary });
+    return summary;
+  }
+
+  const flags = (response.flags || []).filter((f) => f.verdict !== "skip");
+  const red = flags.filter((f) => f.severity === "red").length;
+  const amber = flags.filter((f) => f.severity === "amber").length;
+  await applyFlagsToTab(tab.id, flags);
+  const summary = { total: blocks.length, red, amber, ts: Date.now(), error: null };
+  await chrome.storage.local.set({ scanSummary: summary, scanFlags: flags });
+  return summary;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "START_SCAN") {
+    startScan().then((summary) => sendResponse({ ok: true, summary })).catch((err) => sendResponse({ ok: false, error: String(err) }));
+    return true; // async
+  }
+  if (msg.type === "CLEAR_FLAGS") {
+    getActiveTab().then((tab) => {
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "CLEAR_FLAGS" });
+      }
+    });
+    sendResponse({ ok: true });
+    return true;
+  }
+  return false;
 });

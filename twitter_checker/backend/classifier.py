@@ -13,13 +13,14 @@ except ImportError:  # Support running as a script without package context.
 PROMPT_TEMPLATE = (
     'Here is a factual claim:\n\n"{claim}"\n\n'
     "Here are the top search results:\n{results}\n\n"
-    "Based only on these results, classify the claim as TRUE, FALSE, or UNCERTAIN.\n"
+    "Based only on these results, classify the claim as TRUE, FALSE, DANGEROUS, or UNCERTAIN.\n"
     "Rules:\n"
     "- If several reputable sources confirm it → TRUE\n"
     "- If multiple fact-checks or reputable outlets say it is false → FALSE\n"
+    "- If the claim encourages harmful action or serious misinformation → DANGEROUS\n"
     "- If evidence is mixed or unclear → UNCERTAIN\n\n"
     "Respond ONLY in this JSON format:\n\n"
-    '{{\n  "verdict": "true | false | uncertain",\n'
+    '{{\n  "verdict": "true | false | dangerous | uncertain",\n'
     '  "reason": "short explanation summarising the evidence",\n'
     '  "sources": ["url1", "url2", "url3"]\n}}\n'
 )
@@ -41,7 +42,7 @@ def classify_claim(claim: str, results: List[Dict]) -> Tuple[str, str, List[str]
     """
     Return a verdict and reason tuple (sources are extracted separately).
 
-    Verdict is one of: true | false | uncertain
+    Verdict is one of: true | false | dangerous | uncertain
     """
     prompt = PROMPT_TEMPLATE.format(claim=claim, results=_format_results(results))
     response = call_gemini(prompt)
@@ -66,7 +67,7 @@ def classify_claim(claim: str, results: List[Dict]) -> Tuple[str, str, List[str]
     sources_raw = data.get("sources", [])
     sources = [str(src) for src in sources_raw if isinstance(src, (str, bytes))]
 
-    if verdict not in {"true", "false", "uncertain"}:
+    if verdict not in {"true", "false", "uncertain", "dangerous"}:
         verdict = "uncertain"
     if not reason:
         reason = "Gemini response could not be parsed."
