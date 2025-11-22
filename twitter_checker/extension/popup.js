@@ -47,6 +47,9 @@ function renderScanSummary(summary) {
       Scanned ${summary.total || 0} blocks. Flags: 
       <span class="badge red">${summary.red || 0} red</span>
       <span class="badge amber">${summary.amber || 0} amber</span>
+      <span class="badge blue">${summary.blue || 0} not checked</span>
+    </p>
+    ${summary.budget ? `<p class="budget">Budget: used ${summary.budget.used_calls}/${summary.budget.total_calls} Gemini calls; investigated ${summary.budget.investigated}, skipped ${summary.budget.skipped_due_to_budget} due to budget.</p>` : ""}
     </p>
   `;
 }

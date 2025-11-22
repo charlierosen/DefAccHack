@@ -1,6 +1,8 @@
+import json
+import os
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -16,11 +18,13 @@ if __package__ is None or __package__ == "":
     from classifier import classify_claim
     from google_query import make_search_query
     from searcher import search_web
+    from gemini_client import call_gemini
 else:
     from .claim_extractor import extract_claim
     from .classifier import classify_claim
     from .google_query import make_search_query
     from .searcher import search_web
+    from .gemini_client import call_gemini
 
 
 class InvestigateRequest(BaseModel):
@@ -37,7 +41,12 @@ class ScanRequest(BaseModel):
     blocks: List[Block]
 
 
-app = FastAPI(title="Fact Checker", version="0.2.0")
+GEMINI_BUDGET = int(os.getenv("GEMINI_BUDGET", "10"))
+# Rough estimate: extract + query + classify each consume a Gemini call.
+CALLS_PER_INVESTIGATION = 3
+
+
+app = FastAPI(title="Fact Checker", version="0.3.0")
 
 # Allow extension requests during development.
 app.add_middleware(
@@ -66,28 +75,114 @@ def investigate(payload: InvestigateRequest):
     }
 
 
+def pre_screen_blocks(blocks: List[Dict]) -> List[Dict]:
+    """
+    Use a single Gemini call to decide which blocks look like claims and how suspicious they are.
+
+    Returns list of dicts: {"id": str, "is_claim": bool, "suspicion": "high|medium|low", "reason": str}
+    """
+    # Trim text to keep prompt small.
+    trimmed = [{"id": b["id"], "text": (b["text"][:400] + "..." if len(b["text"]) > 400 else b["text"])} for b in blocks]
+    prompt = (
+        "You have a limited budget. For each text block, decide if it contains a factual claim that might be mis/disinformation. "
+        "For claims, assign a suspicion level: high, medium, or low. Skip non-claims. "
+        "Respond ONLY as a JSON array of objects: [{\"id\": \"...\", \"is_claim\": true/false, \"suspicion\": \"high|medium|low\", \"reason\": \"...\"}]. "
+        "Blocks:\n"
+    )
+    for b in trimmed:
+        prompt += f"- id: {b['id']}\n  text: {b['text']}\n"
+
+    response = call_gemini(prompt)
+
+    def _parse(text: str) -> List[Dict]:
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+        # Fallback: try to find the first JSON array.
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            try:
+                data = json.loads(text[start : end + 1])
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                return []
+        return []
+
+    parsed = _parse(response or "")
+    output = []
+    for item in parsed:
+        if not isinstance(item, dict) or "id" not in item:
+            continue
+        output.append(
+            {
+                "id": item.get("id"),
+                "is_claim": bool(item.get("is_claim", False)),
+                "suspicion": (item.get("suspicion") or "low").lower(),
+                "reason": item.get("reason", ""),
+            }
+        )
+    return output
+
+
 @app.post("/scan")
 def scan(payload: ScanRequest):
-    """Process multiple blocks; skip ones without clear claims."""
+    """Process multiple blocks; skip non-claims and respect a Gemini call budget."""
     flags = []
     limit = payload.blocks[:20]  # safety limit
+    # First call: pre-screen to pick which blocks merit investigation.
+    pre_screen_data = pre_screen_blocks([b.model_dump() for b in limit])
+    pre_screen_map = {item["id"]: item for item in pre_screen_data}
+
+    remaining_budget = max(GEMINI_BUDGET - 1, 0)
+    max_investigations = remaining_budget // CALLS_PER_INVESTIGATION if CALLS_PER_INVESTIGATION else 0
+
+    suspicion_order = {"high": 0, "medium": 1, "low": 2}
+    claim_candidates = []
+
     for block in limit:
         original = block.text.strip()
-        claim = extract_claim(original)
-        # Heuristic: if Gemini returns same text and it's short, skip as non-claim.
-        if not claim or (claim.strip().lower() == original.lower() and len(claim.split()) < 5):
+        pre = pre_screen_map.get(block.id) or {}
+        is_claim = pre.get("is_claim", False)
+        suspicion = pre.get("suspicion", "low")
+        pre_reason = pre.get("reason", "")
+
+        # Skip non-claims
+        if not is_claim:
             flags.append(
                 {
                     "id": block.id,
                     "verdict": "skip",
-                    "reason": "No clear claim detected.",
-                    "claim": claim or original,
+                    "reason": pre_reason or "No clear claim detected.",
+                    "claim": original,
                     "severity": "none",
                     "sources": [],
                 }
             )
             continue
+        claim_candidates.append(
+            {
+                "block": block,
+                "suspicion": suspicion,
+                "pre_reason": pre_reason,
+                "original": original,
+            }
+        )
 
+    # Prioritize candidates based on suspicion level.
+    claim_candidates.sort(key=lambda c: suspicion_order.get(c["suspicion"], 3))
+    to_investigate = claim_candidates[:max_investigations] if max_investigations > 0 else []
+    skipped_due_to_budget = claim_candidates[max_investigations:]
+
+    # Investigate top candidates.
+    for item in to_investigate:
+        block = item["block"]
+        original = item["original"]
+        claim = extract_claim(original)
         query = make_search_query(claim)
         results = search_web(query)
         verdict, reason, sources = classify_claim(claim, results)
@@ -109,4 +204,27 @@ def scan(payload: ScanRequest):
             }
         )
 
-    return {"flags": flags, "count": len(flags)}
+    # Mark remaining claim-like blocks as not checked due to budget.
+    for item in skipped_due_to_budget:
+        block = item["block"]
+        flags.append(
+            {
+                "id": block.id,
+                "verdict": "not_checked",
+                "reason": f"Not checked (budget limit). Suspicion: {item['suspicion']}. {item['pre_reason'] or ''}".strip(),
+                "claim": item["original"],
+                "severity": "blue",
+                "sources": [],
+            }
+        )
+
+    return {
+        "flags": flags,
+        "count": len(flags),
+        "budget": {
+            "total_calls": GEMINI_BUDGET,
+            "used_calls": 1 + CALLS_PER_INVESTIGATION * len(to_investigate),
+            "investigated": len(to_investigate),
+            "skipped_due_to_budget": len(skipped_due_to_budget),
+        },
+    }

@@ -60,6 +60,7 @@ The API listens on `http://localhost:8000`. CORS is open for local extension use
 
 ### Page scanning
 - Use the popup button **Scan this page**. The content script gathers visible text blocks, the backend decides which blocks contain claims (skips non-claims), then flags suspicious ones (red for false/dangerous, amber for uncertain).  
+- The backend uses a limited Gemini budget (default 10 calls). It first pre-screens all blocks with one Gemini call, then only investigates the highest-priority claims within the remaining budget. Blocks flagged as suspicious but not investigated are marked blue (“not checked”).  
 - Hover highlighted text on the page to see a tooltip with the reason and sources.  
 - Click **Clear highlights** in the popup to remove flags.
 

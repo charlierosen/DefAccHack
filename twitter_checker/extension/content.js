@@ -72,6 +72,7 @@ function applyFlags(flags = []) {
     el.classList.add("tc-flag");
     if (flag.severity === "red") el.classList.add("tc-flag-red");
     else if (flag.severity === "amber") el.classList.add("tc-flag-amber");
+    else if (flag.severity === "blue") el.classList.add("tc-flag-blue");
 
     if (flag.reason || (flag.sources && flag.sources.length)) {
       const tooltip = document.createElement("div");
