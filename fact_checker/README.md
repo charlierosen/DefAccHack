@@ -4,7 +4,7 @@ Chrome context-menu extension plus FastAPI backend that sends highlighted text t
 
 ## Project layout
 ```
-twitter_checker/
+fact_checker/
   backend/
     main.py
     requirements.txt
@@ -42,7 +42,7 @@ The API listens on `http://localhost:8000`. CORS is open for local extension use
 ## Load the Chrome extension
 1) Go to `chrome://extensions`.  
 2) Enable Developer Mode.  
-3) Click “Load unpacked” and select `twitter_checker/extension`.  
+3) Click “Load unpacked” and select `fact_checker/extension`.  
 4) The extension adds a context menu entry “Investigate this claim”.
 
 ## Usage
