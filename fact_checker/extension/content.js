@@ -11,6 +11,8 @@ function injectStyles() {
     .tc-flag { position: relative; }
     .tc-flag.tc-flag-red { background: rgba(220, 38, 38, 0.25); outline: 1px solid rgba(220, 38, 38, 0.6); }
     .tc-flag.tc-flag-amber { background: rgba(245, 158, 11, 0.25); outline: 1px solid rgba(245, 158, 11, 0.6); }
+    .tc-flag.tc-flag-blue { background: rgba(59, 130, 246, 0.25); outline: 1px solid rgba(59, 130, 246, 0.6); }
+    .tc-flag.tc-flag-green { background: rgba(34, 197, 94, 0.22); outline: 1px solid rgba(34, 197, 94, 0.6); }
     .tc-flag-tooltip {
       position: absolute;
       z-index: 2147483647;
@@ -40,7 +42,7 @@ function isVisible(el) {
 
 function clearFlags() {
   document.querySelectorAll(".tc-flag").forEach((el) => {
-    el.classList.remove("tc-flag", "tc-flag-red", "tc-flag-amber");
+    el.classList.remove("tc-flag", "tc-flag-red", "tc-flag-amber", "tc-flag-blue", "tc-flag-green");
     const tooltip = el.querySelector(".tc-flag-tooltip");
     if (tooltip) tooltip.remove();
   });
@@ -73,6 +75,7 @@ function applyFlags(flags = []) {
     if (flag.severity === "red") el.classList.add("tc-flag-red");
     else if (flag.severity === "amber") el.classList.add("tc-flag-amber");
     else if (flag.severity === "blue") el.classList.add("tc-flag-blue");
+    else if (flag.severity === "green") el.classList.add("tc-flag-green");
 
     if (flag.reason || (flag.sources && flag.sources.length)) {
       const tooltip = document.createElement("div");
@@ -96,7 +99,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   if (request.type === "COLLECT_BLOCKS") {
     const blocks = collectBlocks();
-    sendResponse({ blocks, url: location.href });
+    sendResponse({ blocks, url: location.href, title: document.title || "" });
     return true;
   }
   if (request.type === "APPLY_FLAGS") {

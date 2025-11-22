@@ -38,6 +38,7 @@ class Block(BaseModel):
 
 class ScanRequest(BaseModel):
     url: Optional[str] = None
+    title: Optional[str] = None
     blocks: List[Block]
 
 
@@ -64,7 +65,7 @@ def investigate(payload: InvestigateRequest):
     claim = extract_claim(original_text)
     query = make_search_query(claim)
     results = search_web(query)
-    verdict, reason, sources = classify_claim(claim, results)
+    verdict, reason, sources = classify_claim(claim, results, page_context="")
     return {
         "claim": claim,
         "verdict": verdict,
@@ -144,6 +145,15 @@ def scan(payload: ScanRequest):
     suspicion_order = {"high": 0, "medium": 1, "low": 2}
     claim_candidates = []
 
+    # Build a short page context string: url, title, and a few snippets.
+    snippets = []
+    for b in limit[:3]:
+        snippet = b.text.strip().replace("\n", " ")
+        if len(snippet) > 160:
+            snippet = snippet[:160] + "..."
+        snippets.append(snippet)
+    page_context = f"URL: {payload.url or ''}\nTitle: {payload.title or ''}\nSnippets:\n" + "\n".join(snippets)
+
     for block in limit:
         original = block.text.strip()
         pre = pre_screen_map.get(block.id) or {}
@@ -185,7 +195,7 @@ def scan(payload: ScanRequest):
         claim = extract_claim(original)
         query = make_search_query(claim)
         results = search_web(query)
-        verdict, reason, sources = classify_claim(claim, results)
+        verdict, reason, sources = classify_claim(claim, results, page_context=page_context)
 
         severity = "green"
         if verdict in {"false", "dangerous"}:

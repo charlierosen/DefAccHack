@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 try:
     from .gemini_client import call_gemini
@@ -12,6 +12,7 @@ except ImportError:  # Support running as a script without package context.
 
 PROMPT_TEMPLATE = (
     'Here is a factual claim:\n\n"{claim}"\n\n'
+    "{page_context}"
     "Here are the top search results:\n{results}\n\n"
     "Based only on these results, classify the claim as TRUE, FALSE, DANGEROUS, or UNCERTAIN.\n"
     "Rules:\n"
@@ -38,13 +39,14 @@ def _format_results(results: List[Dict]) -> str:
     return "\n".join(formatted)
 
 
-def classify_claim(claim: str, results: List[Dict]) -> Tuple[str, str, List[str]]:
+def classify_claim(claim: str, results: List[Dict], page_context: Optional[str] = "") -> Tuple[str, str, List[str]]:
     """
     Return a verdict and reason tuple (sources are extracted separately).
 
     Verdict is one of: true | false | dangerous | uncertain
     """
-    prompt = PROMPT_TEMPLATE.format(claim=claim, results=_format_results(results))
+    context_block = f"Page context:\n{page_context}\n" if page_context else ""
+    prompt = PROMPT_TEMPLATE.format(claim=claim, results=_format_results(results), page_context=context_block)
     response = call_gemini(prompt)
 
     def _parse_json(text: str) -> Dict:

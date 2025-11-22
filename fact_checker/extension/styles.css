@@ -100,6 +100,11 @@ h1 {
   color: #0b0f1a;
 }
 
+.badge.green {
+  background: #22c55e;
+  color: #0b0f1a;
+}
+
 .badge.blue {
   background: #3b82f6;
   color: #0b0f1a;
@@ -120,4 +125,9 @@ h1 {
 .tc-flag.tc-flag-blue {
   background: rgba(59, 130, 246, 0.25);
   outline: 1px solid rgba(59, 130, 246, 0.6);
+}
+
+.tc-flag.tc-flag-green {
+  background: rgba(34, 197, 94, 0.22);
+  outline: 1px solid rgba(34, 197, 94, 0.6);
 }

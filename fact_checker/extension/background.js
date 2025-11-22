@@ -92,18 +92,18 @@ async function startScan() {
   const tab = await getActiveTab();
   if (!tab?.id) return { error: "No active tab." };
 
-  const { blocks = [], url } = (await collectBlocksFromTab(tab.id)) || {};
+  const { blocks = [], url, title } = (await collectBlocksFromTab(tab.id)) || {};
   if (!blocks.length) {
-    const summary = { total: 0, red: 0, amber: 0, blue: 0, ts: Date.now(), error: "No text blocks found." };
+    const summary = { total: 0, red: 0, amber: 0, blue: 0, green: 0, ts: Date.now(), error: "No text blocks found." };
     await chrome.storage.local.set({ scanSummary: summary });
     return summary;
   }
 
   let response;
   try {
-    response = await sendScanPayload({ url: url || tab.url, blocks: blocks.slice(0, 20) });
+    response = await sendScanPayload({ url: url || tab.url, title: title || tab.title, blocks: blocks.slice(0, 20) });
   } catch (err) {
-    const summary = { total: blocks.length, red: 0, amber: 0, blue: 0, ts: Date.now(), error: String(err) };
+    const summary = { total: blocks.length, red: 0, amber: 0, blue: 0, green: 0, ts: Date.now(), error: String(err) };
     await chrome.storage.local.set({ scanSummary: summary });
     return summary;
   }
@@ -112,12 +112,14 @@ async function startScan() {
   const red = flags.filter((f) => f.severity === "red").length;
   const amber = flags.filter((f) => f.severity === "amber").length;
   const blue = flags.filter((f) => f.severity === "blue").length;
+  const green = flags.filter((f) => f.severity === "green").length;
   await applyFlagsToTab(tab.id, flags);
   const summary = {
     total: blocks.length,
     red,
     amber,
     blue,
+    green,
     ts: Date.now(),
     error: null,
     budget: response.budget || null,
