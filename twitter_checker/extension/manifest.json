@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Twitter Checker",
+  "version": "0.1.0",
+  "description": "Send highlighted text to the backend for fact-checking via Gemini.",
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Twitter Checker"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

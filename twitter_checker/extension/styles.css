@@ -1,0 +1,50 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #0d1b2a;
+  color: #e0e1dd;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  width: 320px;
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+}
+
+#result {
+  background: #1b263b;
+  border: 1px solid #415a77;
+  border-radius: 8px;
+  padding: 12px;
+  line-height: 1.4;
+}
+
+.verdict {
+  font-weight: bold;
+  margin: 0 0 8px 0;
+}
+
+.claim,
+.reason {
+  margin: 4px 0;
+}
+
+.sources {
+  margin-top: 8px;
+}
+
+.sources ul {
+  padding-left: 18px;
+  margin: 4px 0 0 0;
+}
+
+.sources a {
+  color: #a9d6e5;
+  word-break: break-all;
+}
