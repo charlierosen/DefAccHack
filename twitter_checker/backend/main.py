@@ -26,7 +26,7 @@ class InvestigateRequest(BaseModel):
     text: str
 
 
-app = FastAPI(title="Twitter Checker", version="0.1.0")
+app = FastAPI(title="Fact Checker", version="0.1.0")
 
 # Allow extension requests during development.
 app.add_middleware(

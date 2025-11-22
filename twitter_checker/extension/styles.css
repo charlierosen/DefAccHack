@@ -48,3 +48,10 @@ h1 {
   color: #a9d6e5;
   word-break: break-all;
 }
+
+#graph {
+  margin-top: 12px;
+  border: 1px solid #415a77;
+  border-radius: 8px;
+  background: radial-gradient(circle at 30% 30%, #0f1e32, #0d1b2a);
+}

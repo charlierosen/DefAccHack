@@ -1,4 +1,4 @@
-# Twitter Checker
+# Fact Checker
 
 Chrome context-menu extension plus FastAPI backend that sends highlighted text to Gemini 2.5 Flash, rewrites it into a search query, fetches web evidence, and returns a simple verdict.
 
@@ -56,7 +56,7 @@ The API listens on `http://localhost:8000`. CORS is open for local extension use
    - “This claim appears to be true.”
    - “This claim appears to be false.”
    - “I am uncertain about this claim.”
-   - It also lists cited source URLs if Gemini returns them.
+   - It also lists cited source URLs if Gemini returns them and draws a simple source graph.
 
 ## Notes on Gemini 2.5 Flash
 - All AI prompts live in `gemini_client.py`, `claim_extractor.py`, `google_query.py`, and `classifier.py`.  

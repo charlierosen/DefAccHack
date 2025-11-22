@@ -45,6 +45,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     verdict: result.verdict,
     reason: result.reason,
     sources: result.sources || [],
+    results: result.results || [],
   });
 
   // Try to surface the popup with the latest result.
