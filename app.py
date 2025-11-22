@@ -26,6 +26,11 @@ def fake_rows():
 
 
 st.subheader("Try a query")
+mode = st.radio(
+    "Mode",
+    ["Demo (show guardrail decision)", "Production (silent block with decoy data)"],
+    horizontal=True,
+)
 with st.form("query_form"):
     user_input = st.text_input(
         "Search employees by name or department",
@@ -36,12 +41,23 @@ with st.form("query_form"):
 
 if submitted:
     decision = evaluate_input(user_input)
-    st.write(f"**Guardrail decision:** {'SAFE' if decision.safe else 'BLOCKED'}")
-    st.caption(f"Reason: {decision.reason} (source: {decision.source})")
+    production_mode = mode.startswith("Production")
+
+    if not production_mode:
+        st.write(f"**Guardrail decision:** {'SAFE' if decision.safe else 'BLOCKED'}")
+        st.caption(f"Reason: {decision.reason} (source: {decision.source})")
+    else:
+        st.caption(
+            "Production mode hides guardrail reasoning. Blocked requests receive decoy data."
+        )
 
     if decision.safe:
         rows = run_insecure_query(user_input)
-        st.success(f"Input marked SAFE → real database queried at {DB_PATH}.")
+        st.success(
+            "Showing real data."
+            if production_mode
+            else f"Input marked SAFE → real database queried at {DB_PATH}."
+        )
         if rows:
             st.dataframe(
                 rows,
@@ -57,7 +73,10 @@ if submitted:
         else:
             st.info("Query returned no rows.")
     else:
-        st.warning("Input blocked → returning fake data instead of hitting the DB.")
+        if production_mode:
+            st.info("Showing generic data.")
+        else:
+            st.warning("Input blocked → returning fake data instead of hitting the DB.")
         st.dataframe(
             fake_rows(),
             column_config={
@@ -69,14 +88,3 @@ if submitted:
             },
             hide_index=True,
         )
-
-st.divider()
-st.subheader("How to use")
-st.markdown(
-    """
-1. Install deps: `pip install -r requirements.txt`
-2. Run: `streamlit run app.py`
-3. Try benign input like `Alice` (passes) and hostile input like `Alice'; DROP TABLE employees;--` (blocked).
-4. Optional: set `GEMINI_API_KEY` to use Gemini instead of regex heuristics.
-"""
-)
