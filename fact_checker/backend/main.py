@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -14,15 +15,13 @@ load_dotenv()  # Load environment variables from .env if present.
 # Support running both as package (uvicorn backend.main:app) and as script (uvicorn main:app).
 if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent))
-    from claim_extractor import extract_claim
     from classifier import classify_claim
-    from google_query import make_search_query
+    from google_query import extract_and_make_query
     from searcher import search_web
     from gemini_client import call_gemini
 else:
-    from .claim_extractor import extract_claim
     from .classifier import classify_claim
-    from .google_query import make_search_query
+    from .google_query import extract_and_make_query
     from .searcher import search_web
     from .gemini_client import call_gemini
 
@@ -43,8 +42,8 @@ class ScanRequest(BaseModel):
 
 
 GEMINI_BUDGET = int(os.getenv("GEMINI_BUDGET", "10"))
-# Rough estimate: extract + query + classify each consume a Gemini call.
-CALLS_PER_INVESTIGATION = 3
+# Rough estimate: combined extract+query (1) + classify (1) per investigation.
+CALLS_PER_INVESTIGATION = 2
 
 
 app = FastAPI(title="Fact Checker", version="0.3.0")
@@ -62,8 +61,7 @@ app.add_middleware(
 @app.post("/investigate")
 def investigate(payload: InvestigateRequest):
     original_text = payload.text
-    claim = extract_claim(original_text)
-    query = make_search_query(claim)
+    claim, query = extract_and_make_query(original_text)
     results = search_web(query)
     verdict, reason, sources = classify_claim(claim, results, page_context="")
     return {
@@ -73,6 +71,7 @@ def investigate(payload: InvestigateRequest):
         "sources": sources,
         "results": results,
         "query": query,
+        "original_text": original_text,
     }
 
 
@@ -141,6 +140,10 @@ def scan(payload: ScanRequest):
 
     remaining_budget = max(GEMINI_BUDGET - 1, 0)
     max_investigations = remaining_budget // CALLS_PER_INVESTIGATION if CALLS_PER_INVESTIGATION else 0
+    min_calls_target = 8
+    min_investigations = 0
+    if GEMINI_BUDGET >= min_calls_target and CALLS_PER_INVESTIGATION:
+        min_investigations = math.ceil((min_calls_target - 1) / CALLS_PER_INVESTIGATION)
 
     suspicion_order = {"high": 0, "medium": 1, "low": 2}
     claim_candidates = []
@@ -185,15 +188,19 @@ def scan(payload: ScanRequest):
 
     # Prioritize candidates based on suspicion level.
     claim_candidates.sort(key=lambda c: suspicion_order.get(c["suspicion"], 3))
-    to_investigate = claim_candidates[:max_investigations] if max_investigations > 0 else []
-    skipped_due_to_budget = claim_candidates[max_investigations:]
+    target_count = max_investigations
+    if max_investigations < min_investigations:
+        target_count = max_investigations  # budget too low
+    else:
+        target_count = max(min_investigations, max_investigations)
+    to_investigate = claim_candidates[:target_count] if target_count > 0 else []
+    skipped_due_to_budget = claim_candidates[target_count:]
 
     # Investigate top candidates.
     for item in to_investigate:
         block = item["block"]
         original = item["original"]
-        claim = extract_claim(original)
-        query = make_search_query(claim)
+        claim, query = extract_and_make_query(original)
         results = search_web(query)
         verdict, reason, sources = classify_claim(claim, results, page_context=page_context)
 
@@ -209,6 +216,7 @@ def scan(payload: ScanRequest):
                 "verdict": verdict,
                 "reason": reason,
                 "claim": claim,
+                "query": query,
                 "severity": severity,
                 "sources": sources,
             }

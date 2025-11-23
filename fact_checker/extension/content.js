@@ -78,17 +78,24 @@ function applyFlags(flags = []) {
     else if (flag.severity === "green") el.classList.add("tc-flag-green");
 
     if (flag.reason || (flag.sources && flag.sources.length)) {
-      const tooltip = document.createElement("div");
-      tooltip.className = "tc-flag-tooltip";
-      const sources = (flag.sources || []).slice(0, 2).map((s) => `<div>${s}</div>`).join("");
-      tooltip.innerHTML = `
-        <div><strong>${flag.verdict || "flagged"}</strong></div>
+    const tooltip = document.createElement("div");
+    tooltip.className = "tc-flag-tooltip";
+    const sources = (flag.sources || []).slice(0, 2).map((s) => `<div>${s}</div>`).join("");
+      const queryLine = flag.query ? `<div><em>Search:</em> ${truncate(flag.query, 80)}</div>` : "";
+    tooltip.innerHTML = `
+      <div><strong>${flag.verdict || "flagged"}</strong></div>
         ${flag.reason ? `<div>${flag.reason}</div>` : ""}
+        ${queryLine}
         ${sources ? `<div><em>Sources:</em>${sources}</div>` : ""}
       `;
       el.appendChild(tooltip);
     }
   });
+}
+
+function truncate(text, maxLen) {
+  if (!text) return "";
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
 }
 
 // Responders.

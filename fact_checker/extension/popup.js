@@ -1,6 +1,6 @@
 const graphCanvas = () => document.getElementById("graph");
 
-function renderResult({ claim, verdict, reason, sources, results }) {
+function renderResult({ claim, verdict, reason, sources, results, query, original_text }) {
   const container = document.getElementById("result");
   if (!verdict) {
     container.textContent = "No investigation yet.";
@@ -19,7 +19,8 @@ function renderResult({ claim, verdict, reason, sources, results }) {
 
   container.innerHTML = `
     <p class="verdict">${verdictText}</p>
-    ${claim ? `<p class="claim">Claim: ${claim}</p>` : ""}
+    ${query ? `<p class="query">Search: ${truncate(query, 140)}</p>` : ""}
+    ${original_text ? `<p class="original">Original: ${truncate(original_text, 160)}</p>` : ""}
     ${reason ? `<p class="reason">${reason}</p>` : ""}
     ${Array.isArray(sources) && sources.length
       ? `<div class="sources"><strong>Sources:</strong><ul>${sources
@@ -139,6 +140,11 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
+function truncate(text, maxLen) {
+  if (!text) return "";
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const controls = {
     scanBtn: document.getElementById("scan-btn"),
@@ -163,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function load() {
-    chrome.storage.local.get(["claim", "verdict", "reason", "sources", "results", "scanSummary"], (data) => {
+  chrome.storage.local.get(["claim", "verdict", "reason", "sources", "results", "scanSummary", "query", "original_text"], (data) => {
       renderResult(data);
       renderScanSummary(data.scanSummary);
     });
@@ -171,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   chrome.storage.onChanged.addListener((changes) => {
     const snapshot = {};
-    ["claim", "verdict", "reason", "sources", "results", "scanSummary"].forEach((k) => {
+    ["claim", "verdict", "reason", "sources", "results", "scanSummary", "query", "original_text"].forEach((k) => {
       if (changes[k]) snapshot[k] = changes[k].newValue;
     });
     if (Object.keys(snapshot).length) {
@@ -181,6 +187,8 @@ document.addEventListener("DOMContentLoaded", () => {
         reason: snapshot.reason,
         sources: snapshot.sources,
         results: snapshot.results,
+        query: snapshot.query,
+        original_text: snapshot.original_text,
       };
       renderResult({ ...data, ...snapshot });
       renderScanSummary(snapshot.scanSummary);

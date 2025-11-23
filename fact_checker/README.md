@@ -48,8 +48,7 @@ The API listens on `http://localhost:8000`. CORS is open for local extension use
 ## Usage
 1) Highlight text on any page, right-click, and choose **Investigate this claim**.  
 2) The background script sends the text to `POST /investigate`:
-   - `extract_claim()` cleans the claim with Gemini 2.5 Flash.  
-   - `make_search_query()` rewrites it for search with Gemini.  
+   - `extract_and_make_query()` uses one Gemini call to clean the claim and produce a search query.  
    - `search_web()` queries Brave Search or SerpAPI (or returns mock data).  
    - `classify_claim()` asks Gemini to label the claim as `true | false | uncertain` and return source URLs from the provided results.  
 3) The popup displays one of:
